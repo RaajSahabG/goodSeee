@@ -25,9 +25,13 @@ const corsOptions = {
 
 // Set up Redis client
 const redis = new Redis({
-    host: process.env.REDIS_HOST, // Redis server address
-    port:process.env.REDIS_PORT,        // Redis server port
+    password: process.env.REDIS_PASSWORD,
+    socket: {
+       host: process.env.REDIS_HOST, // Redis server address
+       port:process.env.REDIS_PORT        // Redis server port
+    }
 });
+redis.connect(console.log("Connected Redis")).catch(console.error);
 
 // Connect to MongoDB (your connection string)
 mongoose.connect(process.env.MONGO_DB, {
