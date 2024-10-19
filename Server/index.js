@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const Redis = require('ioredis');
 const apiData = require('../ApiData'); // Import the apiData
 const { v4: uuidv4 } = require('uuid'); //for generating random ids
 const cors = require('cors')
@@ -22,16 +21,6 @@ const corsOptions = {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], // Allowed HTTP methods
     credentials: true // Set to true if you need to pass credentials like cookies in cross-origin requests
 };
-
-// Set up Redis client
-const redis = new Redis({
-    password: process.env.REDIS_PASSWORD,
-    socket: {
-       host: process.env.REDIS_HOST, // Redis server address
-       port:process.env.REDIS_PORT        // Redis server port
-    }
-});
-redis.connect(console.log("Connected Redis")).catch(console.error);
 
 // Connect to MongoDB (your connection string)
 mongoose.connect(process.env.MONGO_DB, {
@@ -204,15 +193,15 @@ app.get('/api/employees', (req, res) => {
     // Get the array of employees
     const employees = employeesData.employees;
 
-    // Get role and location from the query parameters
+    // Get role and location from the query parameters, and decode them to handle URL-encoded values (e.g., %20 for spaces)
     let { role, location } = req.query;
 
-    // Trim spaces and ensure case insensitivity
+    // Decode the URL-encoded query parameters
     if (role) {
-        role = role.trim().toLowerCase();
+        role = decodeURIComponent(role).trim().toLowerCase();
     }
     if (location) {
-        location = location.trim().toLowerCase();
+        location = decodeURIComponent(location).trim().toLowerCase();
     }
 
     // Filter employees based on role and location
@@ -243,6 +232,10 @@ app.get('/api/employees', (req, res) => {
         employees: filteredEmployees
     });
 });
+
+
+
+
 
 
 // GET endpoint - fetch an employee by ID
@@ -296,59 +289,155 @@ app.get('*', (req, res) => {
 
 
 // POST endpoint - store in Redis
-app.post('/api/employees/create', async (req, res) => {
+app.post('/api/employees/create', (req, res) => {
     try {
-        const employeeData = req.body;
-        
-        if (!employeeData || Object.keys(employeeData).length === 0) {
-            return res.status(400).json({ message: 'No employee data provided' });
+      const { body, headers } = req;
+  
+      // Check if Content-Type is JSON (optional)
+      if (headers['content-type'] !== 'application/json') {
+        return res.status(400).json({ error: 'Invalid Content-Type' });
+      }
+  
+      // Find the matching API endpoint in apiData
+      const endpoint = apiData.find(api => 
+        api.requestUrl.URL === '/api/employees/create' && api.requestType === 'POST'
+      );
+  
+      if (endpoint) {
+        // Optional: Validate incoming data based on the expected fields in apiData.js
+        const { firstName, lastName, email, role, location, salary } = body;
+        if (!firstName || !lastName || !email || !role || !location || !salary) {
+          return res.status(400).json({ error: 'Missing required fields' });
         }
-
-        // console.log(employeeData);
-
-        const employeeId = uuidv4(); // Generate unique ID
-        const newEmployee = { id: employeeId, ...employeeData };
-        // console.log(newEmployee);
-
-        const redisKey = `employee:${newEmployee.email}`;
-
-        // Store data in Redis with expiration time of 7 days
-        await redis.set(redisKey, JSON.stringify(newEmployee), 'EX', 7 * 24 * 60 * 60);
-
-        return res.status(201).json({ newEmployee });
+  
+        // Generate a unique employee ID
+        const employeeId = uuidv4();
+  
+        // Prepare the response, including the generated ID
+        const response = {
+          id: employeeId, // Include the generated employee ID
+          firstName,
+          lastName,
+          email,
+          role,
+          location,
+          salary,
+          message: 'Employee created successfully.', // Based on your apiData.js structure
+        };
+  
+        // Send the response from the endpoint, using the response code from apiData.js
+        return res.status(endpoint.responseCode).json(response);
+      } else {
+        // If no matching endpoint is found in apiData.js, return a 404 response
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
     } catch (error) {
-        console.error('Error creating employee:', error);
-        return res.status(500).json({ message: 'Server error' });
+      console.error('Error creating employee:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
-});
+  });
 
 // PUT endpoint - update in Redis
-app.put('/api/employees/update/:id', async (req, res) => {
-    const employeeData = req.body;
-    const employeeId = req.params.id;
+app.put('/api/employees/update/:id', (req, res) => {
+    try {
+      const { body, headers } = req;
+      const employeeId = req.params.id;
+  
+      // Check if the employeeId is 11 (as expected)
+      if (employeeId !== '11') {
+        return res.status(404).json({ error: 'Employee not available' });
+      }
+  
+      // Check if Content-Type is JSON (optional)
+      if (headers['content-type'] !== 'application/json') {
+        return res.status(400).json({ error: 'Invalid Content-Type' });
+      }
+  
+      // Find the matching API endpoint in apiData
+      const endpoint = apiData.find(api => 
+        api.requestUrl.URL === `/api/employees/update/${employeeId}` && api.requestType === 'PUT'
+      );
+    //   console.log(endpoint)
+      if (endpoint) {
+        // Optional: Validate incoming data (based on what your endpoint expects)
+        const { firstName, lastName, email, role, location, salary } = body;
+        if (!firstName || !lastName || !email || !role || !location || !salary) {
+          return res.status(400).json({ error: 'Missing required fields' });
+        }
+  
+        // Prepare the response with the updated employee data
+        const response = {
+          id: employeeId, // Use the provided employee ID (which is now fixed to 11)
+          firstName,
+          lastName,
+          email,
+          role,
+          location,
+          salary,
+          message: 'Employee updated successfully.',
+        };
+  
+        // Send the response from the endpoint
+        return res.status(endpoint.responseCode).json(response);
+      } else {
+        // If no matching endpoint is found, return a 404 response
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
 
-    // Store updated employee data in Redis
-    const redisKey = `employee:${employeeId}`; 
-
-    // Update data in Redis with an expiration time of 7 days
-    await redis.set(redisKey, JSON.stringify(employeeData), 'EX', 7 * 24 * 60 * 60);
-
-    return res.status(200).json({ employeeData });
-});
 
 // PATCH endpoint - patch in Redis
-app.patch('/api/employees/update/:id', async (req, res) => {
-    const employeeData = req.body;
-    const employeeId = req.params.id;
-
-    // Store patched employee data in Redis
-    const redisKey = `employee:${employeeId}`; 
-
-    // Update data in Redis with an expiration time of 7 days
-    await redis.set(redisKey, JSON.stringify(employeeData), 'EX', 7 * 24 * 60 * 60);
-
-    return res.status(200).json({employeeData });
-});
+app.patch('/api/employees/update/:id', (req, res) => {
+    try {
+      const { body, headers } = req;
+      const employeeId = req.params.id;
+  
+      // Check if Content-Type is JSON (optional)
+      if (headers['content-type'] !== 'application/json') {
+        return res.status(400).json({ error: 'Invalid Content-Type' });
+      }
+  
+      // Find the matching API endpoint in apiData
+      const endpoint = apiData.find(api => 
+        api.requestUrl.URL.startsWith('/api/employees/update/') && api.requestType === 'PATCH'
+      );
+  
+      if (endpoint) {
+        // Optional: Validate incoming data (for PATCH, only required fields can be checked)
+        const { firstName, lastName, email, role, location, salary } = body;
+        
+        // Example: Check that at least one field is provided for the PATCH request
+        if (!firstName && !lastName && !email && !role && !location && !salary) {
+          return res.status(400).json({ error: 'No fields provided to update' });
+        }
+  
+        // Prepare the response with the patched employee data
+        const response = {
+          id: employeeId, // Use the provided employee ID
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+          ...(email && { email }),
+          ...(role && { role }),
+          ...(location && { location }),
+          ...(salary && { salary }),
+          message: 'Employee patched successfully.',
+        };
+  
+        // Send the response from the endpoint
+        return res.status(endpoint.responseCode).json(response);
+      } else {
+        // If no matching endpoint is found, return a 404 response
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
+    } catch (error) {
+      console.error('Error patching employee:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
 
 
 // DELETE endpoint for removing an employee by ID
