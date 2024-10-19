@@ -155,7 +155,7 @@ const apiData = [
     {
       name: "Get users By roles and Locations",
       requestUrl: {
-        URL: "/api/employees?role=QA Engineer&location=Chicago", response: {
+        URL: "/api/employees?role=QAEngineer&location=Chicago", response: {
           employees: [
             {
               id: 4,
@@ -214,7 +214,7 @@ const apiData = [
     {
       name: "Update user",
       requestUrl: {
-        URL: "/api/employees/update/{id}", response: {
+        URL: "/api/employees/update/11", response: {
           id: 11,
           firstName: "Alice",
           lastName: "Johnson",
@@ -244,7 +244,7 @@ const apiData = [
     {
       name: "Update User By Patch ",
       requestUrl: {
-        URL: "/api/employees/update/{id}", response: {
+        URL: "/api/employees/update/11", response: {
           id: 11,
           firstName: "Alice",
           lastName: "Johnson",
